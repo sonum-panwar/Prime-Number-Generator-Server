@@ -1,27 +1,24 @@
 from flask import Flask, request, jsonify
 import time
 import json
-from prime_generator import (sieve_of_eratosthenes, simple_division, wheel_factorization, atkin_sieve, sundaram_sieve, db_conn, log_execution)
+from prime_generator import (SieveOfEratosthenes, SimpleDivision, WheelFactorization, AtkinSieve, SundaramSieve, db_conn, prime_logger)
 
 app = Flask(__name__)
-app.config['JSONIFY_PRETTYPRINT_REGULAR'] = True  
+app.config['JSONIFY_PRETTYPRINT_REGULAR'] = True
 
-# Helper function to select the prime generation algorithm
+# Dictionary mapping algorithm names to their respective classes
+algorithms = {
+    'sieve': SieveOfEratosthenes(),
+    'simple_division': SimpleDivision(),
+    'wheel_factorization': WheelFactorization(),
+    'atkin_sieve': AtkinSieve(),
+    'sundaram_sieve': SundaramSieve()
+}
+
 def primes_algorithm(start, end, algorithm):
-    if algorithm == 'sieve':
-        return sieve_of_eratosthenes(start, end)
-    elif algorithm == 'simple_division':
-        return simple_division(start, end)
-    elif algorithm == 'wheel_factorization':
-        return wheel_factorization(start, end)
-    elif algorithm == 'atkin_sieve':
-        return atkin_sieve(start, end)
-    elif algorithm == 'sundaram_sieve':
-        return sundaram_sieve(start, end)
-    else:
-        return []
+    return algorithms.get(algorithm, SieveOfEratosthenes()).generate(start, end)
 
-# Endpoint to generate primes
+# Endpoint to generate numbers
 @app.route('/primes', methods=['GET'])
 def get_primes():
     start = int(request.args.get('start'))
@@ -31,9 +28,9 @@ def get_primes():
     start_time = time.time()  # Record the start time
     primes = primes_algorithm(start, end, algorithm)
     end_time = time.time()  # Record the end time
-    time_elapsed = end_time - start_time  # Calculate the time elapsed
+    time_elapsed = end_time - start_time
 
-    log_execution(start, end, time_elapsed, algorithm, len(primes), primes)  # Log the execution details
+    prime_logger.log(start, end, time_elapsed, algorithm, len(primes), primes)
 
     return jsonify({
         'primes': primes,
@@ -49,8 +46,8 @@ def get_primes():
 def get_logs():
     cursor = db_conn.cursor()
     cursor.execute('SELECT * FROM logs')
-    rows = cursor.fetchall()  # Fetch all log entries
-    
+    rows = cursor.fetchall()
+
     logs = []
     for row in rows:
         log = {
@@ -64,8 +61,9 @@ def get_logs():
             "primes": json.loads(row[7])
         }
         logs.append(log)
-    
+
     return jsonify(logs)
 
 if __name__ == '__main__':
-    app.run(debug=True)  # Run the Flask web server
+    app.run(debug=True)
+
